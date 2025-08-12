@@ -1,0 +1,107 @@
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="https://www.w3schools.com/w3css/4/w3.css">
+</head>
+
+<body>
+    <style>
+        .w3-container {
+            font-size: 14px;
+        }
+
+        .center {
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+        }
+    </style>
+
+    <div class="center">
+        <h3 class="donate">
+            <div class="w3-card-4">
+
+                <header class="w3-container w3-blue">
+                    <h1>VENUE BOOKING PAYMENT</h1>
+                </header>
+
+                <div class="w3-container">
+                    <p>Complete your venue booking payment.</p>
+                    
+                    {% if venue_name %}
+                    <div class="w3-panel w3-pale-green w3-border">
+                        <h4>Booking Details:</h4>
+                        <p><strong>Venue:</strong> {{ venue_name }}</p>
+                        <p><strong>Date:</strong> {{ booking_date }}</p>
+                        <p><strong>Time:</strong> {{ start_time }} - {{ end_time }}</p>
+                        <p><strong>Duration:</strong> {{ total_hours }} hours</p>
+                        <p><strong>Total Amount:</strong> ${{ total_amount }}</p>
+                    </div>
+                    {% endif %}
+
+                    <!-- PAYPAL BUTTONS HERE  -->
+
+                    <div id="paypal-button-container"></div>
+
+                    <!-- Include the PayPal JavaScript SDK -->
+                    <script
+                        src="https://www.paypal.com/sdk/js?client-id=AdOowzzWzbKZzV6LI9aCEUx8dNWvetmolWXEt__cLJOIX7mVaqrAJbvwSzt5vVkQfOZeJQAB3ayefSHP&currency=USD">
+                    </script>
+
+                    <script>
+                        // Get the amount from Django template
+                        const paymentAmount = '{{ total_amount|default:"50" }}';
+                        const bookingDetails = '{{ venue_name|default:"Venue" }} - {{ booking_date|default:"" }} {{ start_time|default:"" }}-{{ end_time|default:"" }}';
+                        
+                        // Render the PayPal button into #paypal-button-container
+                        paypal.Buttons({
+
+                            // Set up the transaction
+                            createOrder: function (data, actions) {
+                                return actions.order.create({
+                                    purchase_units: [{
+                                        amount: {
+                                            value: paymentAmount
+                                        },
+                                        description: bookingDetails
+                                    }]
+                                });
+                            },
+
+                            // Finalize the transaction
+                            onApprove: function (data, actions) {
+                                return actions.order.capture().then(function (details) {
+                                    // Show a success message to the buyer
+                                    alert('Booking confirmed! Payment completed by ' + details.payer.name.given_name + '!');
+                                    // Redirect to success page or close window
+                                    window.location.href = '/booking-success/';
+                                });
+                            },
+
+                            // Handle errors
+                            onError: function (err) {
+                                console.error('PayPal error:', err);
+                                alert('Payment failed. Please try again.');
+                            },
+
+                            // Handle cancellation
+                            onCancel: function (data) {
+                                alert('Payment cancelled.');
+                                window.location.href = '/booking-cancelled/';
+                            }
+
+                        }).render('#paypal-button-container');
+                    </script>
+
+                </div>
+
+                <footer class="w3-container w3-blue">
+                    <h5>&copy Professional Cipher</h5>
+                </footer>
+
+            </div>
+        </h3>
+
+    </div>
+
+</body>
