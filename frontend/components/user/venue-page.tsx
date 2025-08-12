@@ -1,10 +1,45 @@
 "use client"
 
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ArrowLeft, MapPin, Star, Wifi, Car, Coffee, Users } from "lucide-react"
+
+interface Amenity {
+  icon: React.ElementType
+  name: string
+}
+
+interface Court {
+  id: string
+  name: string
+  sport: string
+  price: number
+  available: boolean
+}
+
+interface Review {
+  id: string
+  user: string
+  rating: number
+  comment: string
+  date: string
+}
+
+interface Venue {
+  id: string
+  name: string
+  description: string
+  address: string
+  sports: string[]
+  rating: number
+  totalReviews: number
+  images: string[]
+  amenities: Amenity[]
+  courts: Court[]
+}
 
 interface VenuePageProps {
   venueId: string
@@ -12,62 +47,73 @@ interface VenuePageProps {
   onBack: () => void
 }
 
-const venueData = {
-  "1": {
-    id: "1",
-    name: "SportZone Arena",
-    description:
-      "Premier indoor sports facility with state-of-the-art courts and professional lighting. Perfect for competitive matches and casual games.",
-    address: "123 Sports Street, Downtown, City 12345",
-    sports: ["Badminton", "Tennis"],
-    rating: 4.8,
-    totalReviews: 124,
-    images: [
-      "/modern-badminton-arena.png",
-      "/indoor-professional-tennis-court.png",
-      "/sports-facility-reception.png",
-      "/sports-facility-lockers.png",
-    ],
-    amenities: [
-      { icon: Wifi, name: "Free WiFi" },
-      { icon: Car, name: "Parking" },
-      { icon: Coffee, name: "Cafeteria" },
-      { icon: Users, name: "Changing Rooms" },
-    ],
-    courts: [
-      { id: "1", name: "Badminton Court 1", sport: "Badminton", price: 25, available: true },
-      { id: "2", name: "Badminton Court 2", sport: "Badminton", price: 25, available: true },
-      { id: "3", name: "Tennis Court 1", sport: "Tennis", price: 30, available: false },
-      { id: "4", name: "Tennis Court 2", sport: "Tennis", price: 30, available: true },
-    ],
-    reviews: [
-      {
-        id: "1",
-        user: "John D.",
-        rating: 5,
-        comment: "Excellent facilities and well-maintained courts!",
-        date: "2024-01-15",
-      },
-      {
-        id: "2",
-        user: "Sarah M.",
-        rating: 4,
-        comment: "Great place to play. Staff is very helpful.",
-        date: "2024-01-10",
-      },
-      { id: "3", user: "Mike R.", rating: 5, comment: "Best badminton courts in the city!", date: "2024-01-08" },
-    ],
-  },
-}
-
 export function VenuePage({ venueId, onBookCourt, onBack }: VenuePageProps) {
-  const venue = venueData[venueId as keyof typeof venueData]
+  const [venue, setVenue] = useState<Venue | null>(null)
+  const [reviews, setReviews] = useState<Review[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-  if (!venue) {
+  useEffect(() => {
+    async function fetchVenue() {
+      setLoading(true)
+      try {
+        const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL
+        const res = await fetch(`${backendUrl}/venues/${venueId}/`)
+        if (!res.ok) throw new Error("Failed to fetch venue")
+        const data = await res.json()
+        // API returns: { venue: {...}, reviews: [...] }
+        const v = data.venue
+        setVenue({
+          id: v.id,
+          name: v.name,
+          description: v.description,
+          address: `${v.address_line_1 ?? ""} ${v.locality ?? ""}, ${v.city ?? ""} ${v.postal_code ?? ""}`.trim(),
+          sports: v.sports.map((s: any) => s.name),
+          rating: v.rating,
+          totalReviews: data.reviews.length,
+          images: v.photos.map((p: any) => p.image),
+          amenities: [
+            { icon: Wifi, name: "Free WiFi" },
+            { icon: Car, name: "Parking" },
+            { icon: Coffee, name: "Cafeteria" },
+            { icon: Users, name: "Changing Rooms" },
+          ], // replace if your API has amenities
+          courts: v.courts.map((court: any) => ({
+            id: court.id,
+            name: court.name,
+            sport: court.sport.name,
+            price: court.price_per_hour,
+            available: true, // you might want to fetch availability separately
+          })),
+        })
+        setReviews(data.reviews.map((r: any) => ({
+          id: r.id,
+          user: r.user.username || r.user.email || "Anonymous",
+          rating: r.rating,
+          comment: r.comment,
+          date: new Date(r.created_at).toLocaleDateString(),
+        })))
+        setError(null)
+      } catch (err: any) {
+        setError(err.message || "Unknown error")
+        setVenue(null)
+        setReviews([])
+      }
+      setLoading(false)
+    }
+    fetchVenue()
+  }, [venueId])
+
+  if (loading) {
+    return <div className="p-8 text-green-700">Loading venue details...</div>
+  }
+
+  if (error || !venue) {
     return (
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="text-center">
           <h1 className="text-2xl font-bold text-green-800 mb-4">Venue Not Found</h1>
+          <p className="text-red-600 mb-4">{error}</p>
           <Button onClick={onBack} className="bg-green-600 hover:bg-green-700">
             Go Back
           </Button>
@@ -95,7 +141,7 @@ export function VenuePage({ venueId, onBookCourt, onBack }: VenuePageProps) {
             </div>
             <div className="flex items-center">
               <Star className="w-5 h-5 text-yellow-400 fill-current" />
-              <span className="text-green-700 font-semibold ml-1">{venue.rating}</span>
+              <span className="text-green-700 font-semibold ml-1">{venue.rating.toFixed(1)}</span>
               <span className="text-green-600 ml-1">({venue.totalReviews} reviews)</span>
             </div>
           </div>
@@ -117,11 +163,7 @@ export function VenuePage({ venueId, onBookCourt, onBack }: VenuePageProps) {
           <div className="mb-8">
             <div className="grid grid-cols-2 gap-4">
               <div className="col-span-2">
-                <img
-                  src={venue.images[0] || "/placeholder.svg"}
-                  alt={venue.name}
-                  className="w-full h-64 object-cover rounded-lg"
-                />
+                <img src={venue.images[0] || "/placeholder.svg"} alt={venue.name} className="w-full h-64 object-cover rounded-lg" />
               </div>
               {venue.images.slice(1).map((image, index) => (
                 <img
@@ -178,22 +220,26 @@ export function VenuePage({ venueId, onBookCourt, onBack }: VenuePageProps) {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
-                    {venue.reviews.map((review) => (
-                      <div key={review.id} className="border-b border-green-100 pb-4 last:border-b-0">
-                        <div className="flex items-center justify-between mb-2">
-                          <div className="flex items-center">
-                            <span className="font-semibold text-green-800">{review.user}</span>
-                            <div className="flex items-center ml-2">
-                              {Array.from({ length: review.rating }).map((_, i) => (
-                                <Star key={i} className="w-4 h-4 text-yellow-400 fill-current" />
-                              ))}
+                    {reviews.length === 0 ? (
+                      <p className="text-green-700">No reviews yet.</p>
+                    ) : (
+                      reviews.map((review) => (
+                        <div key={review.id} className="border-b border-green-100 pb-4 last:border-b-0">
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center">
+                              <span className="font-semibold text-green-800">{review.user}</span>
+                              <div className="flex items-center ml-2">
+                                {Array.from({ length: review.rating }).map((_, i) => (
+                                  <Star key={i} className="w-4 h-4 text-yellow-400 fill-current" />
+                                ))}
+                              </div>
                             </div>
+                            <span className="text-sm text-green-600">{review.date}</span>
                           </div>
-                          <span className="text-sm text-green-600">{review.date}</span>
+                          <p className="text-green-600">{review.comment}</p>
                         </div>
-                        <p className="text-green-600">{review.comment}</p>
-                      </div>
-                    ))}
+                      ))
+                    )}
                   </div>
                 </CardContent>
               </Card>
